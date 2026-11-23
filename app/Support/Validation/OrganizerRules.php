@@ -41,7 +41,37 @@ class OrganizerRules
             'twitterHandle' => 'nullable|string|max:15',
             'facebookHandle' => 'nullable|string|max:50',
             'patreon' => 'nullable|string|max:30',
+            'threadsHandle' => ['nullable', 'string', 'max:31', 'regex:/^@?[A-Za-z0-9._]+$/'],
+            // A Bluesky handle is a domain name: name.bsky.social or the organization's own.
+            'blueskyHandle' => ['nullable', 'string', 'max:253', 'regex:/^@?([A-Za-z0-9-]+\.)+[A-Za-z]{2,}$/'],
+            // A LinkedIn page link (company or person); https:// may be left off.
+            'linkedinUrl' => ['nullable', 'string', 'max:255', 'regex:/^(https?:\/\/)?([a-z]{2,3}\.)?linkedin\.com\/[^\s]+$/i'],
         ];
+    }
+
+    /** The fields shown with an "@" in front, stored without one. */
+    public const AT_HANDLES = ['instagramHandle', 'twitterHandle', 'threadsHandle', 'blueskyHandle'];
+
+    /** The contact fields an organizer saves (web form and MCP tools alike). */
+    public const CONTACT_FIELDS = ['email', 'website', 'instagramHandle', 'twitterHandle', 'facebookHandle', 'patreon', 'threadsHandle', 'blueskyHandle', 'linkedinUrl'];
+
+    /**
+     * Tidies validated contact fields before saving: no leading "@" on a
+     * handle (see normalizeHandle()), and a LinkedIn link always starts with https://.
+     */
+    public static function tidy(array $data): array
+    {
+        foreach (self::AT_HANDLES as $field) {
+            if (array_key_exists($field, $data)) {
+                $data[$field] = self::normalizeHandle($data[$field]);
+            }
+        }
+
+        if (array_key_exists('linkedinUrl', $data) && filled($data['linkedinUrl'])) {
+            $data['linkedinUrl'] = 'https://'.preg_replace('#^https?://#i', '', trim($data['linkedinUrl']));
+        }
+
+        return $data;
     }
 
     /**
@@ -78,6 +108,12 @@ class OrganizerRules
             'twitterHandle.max' => 'The Twitter handle may not be greater than 15 characters.',
             'facebookHandle.max' => 'The Facebook handle may not be greater than 50 characters.',
             'patreon.max' => 'The Patreon handle may not be greater than 30 characters.',
+            'threadsHandle.max' => 'The Threads handle may not be greater than 30 characters.',
+            'threadsHandle.regex' => 'A Threads handle has only letters, numbers, periods and underscores.',
+            'blueskyHandle.max' => 'The Bluesky handle is too long.',
+            'blueskyHandle.regex' => 'A Bluesky handle looks like name.bsky.social.',
+            'linkedinUrl.max' => 'The LinkedIn link is too long.',
+            'linkedinUrl.regex' => 'Paste the LinkedIn page link, like linkedin.com/company/your-company.',
             'image.required' => 'An image file is required.',
             'image.image' => 'The file must be an image.',
             'image.mimes' => 'The image must be a file of type: jpeg, png, jpg, webp, avif.',

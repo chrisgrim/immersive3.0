@@ -57,18 +57,9 @@ class UpdateOrganizer extends Tool
             }
         }
 
-        $data = collect($validated)->only([
-            'name', 'description', 'email', 'website',
-            'instagramHandle', 'twitterHandle', 'facebookHandle', 'patreon',
-        ])->all();
-
-        // See OrganizerRules::normalizeHandle() — strips a leading "@" an
-        // LLM caller may pass despite the schema saying "without @".
-        foreach (['instagramHandle', 'twitterHandle'] as $field) {
-            if (array_key_exists($field, $data)) {
-                $data[$field] = OrganizerRules::normalizeHandle($data[$field]);
-            }
-        }
+        // tidy() strips a leading "@" an LLM caller may pass despite the
+        // schema saying "without @" (see OrganizerRules::normalizeHandle()).
+        $data = OrganizerRules::tidy(collect($validated)->only(['name', 'description', ...OrganizerRules::CONTACT_FIELDS])->all());
 
         // Never write a published organizer's name directly — once published,
         // the name changes only through the name-change request filed below.
@@ -123,6 +114,9 @@ class UpdateOrganizer extends Tool
                 'twitterHandle' => $organizer->twitterHandle,
                 'facebookHandle' => $organizer->facebookHandle,
                 'patreon' => $organizer->patreon,
+                'threadsHandle' => $organizer->threadsHandle,
+                'blueskyHandle' => $organizer->blueskyHandle,
+                'linkedinUrl' => $organizer->linkedinUrl,
                 'has_logo' => filled($organizer->largeImagePath) || $organizer->images()->exists(),
             ],
         ];
@@ -164,6 +158,9 @@ class UpdateOrganizer extends Tool
             'twitterHandle' => $schema->string()->description('Twitter/X handle without @.'),
             'facebookHandle' => $schema->string()->description('Facebook page handle.'),
             'patreon' => $schema->string()->description('Patreon handle.'),
+            'threadsHandle' => $schema->string()->description('Threads handle without @.'),
+            'blueskyHandle' => $schema->string()->description('Bluesky handle without @, e.g. name.bsky.social.'),
+            'linkedinUrl' => $schema->string()->description('LinkedIn page link, e.g. https://www.linkedin.com/company/name.'),
             'image_url' => $schema->string()->description('Public URL of a new logo (jpeg/png/webp, max 8 MB, cropped square). Replaces the current one.'),
             'remove_image' => $schema->boolean()->description('Remove the current logo without adding a new one.'),
         ];

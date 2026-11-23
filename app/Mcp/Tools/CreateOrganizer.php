@@ -86,10 +86,7 @@ class CreateOrganizer extends Tool
         try {
             $organizer = app(CreateOrganizerAction::class)->handle(
                 $user,
-                collect($validated)->only([
-                    'name', 'description', 'email', 'website',
-                    'instagramHandle', 'twitterHandle', 'facebookHandle', 'patreon',
-                ])->all(),
+                collect($validated)->only(['name', 'description', ...OrganizerRules::CONTACT_FIELDS])->all(),
                 $image
             );
         } finally {
@@ -123,6 +120,9 @@ class CreateOrganizer extends Tool
             'twitterHandle' => $schema->string()->description('Twitter/X handle without @.'),
             'facebookHandle' => $schema->string()->description('Facebook page handle.'),
             'patreon' => $schema->string()->description('Patreon handle.'),
+            'threadsHandle' => $schema->string()->description('Threads handle without @.'),
+            'blueskyHandle' => $schema->string()->description('Bluesky handle without @, e.g. name.bsky.social.'),
+            'linkedinUrl' => $schema->string()->description('LinkedIn page link, e.g. https://www.linkedin.com/company/name.'),
             'image_url' => $schema->string()->description('Optional public URL of a logo/profile image (jpeg/png/webp, max 8 MB). It will be cropped square.'),
             'acknowledge_duplicate' => $schema->boolean()->description('Set true only after the user confirms creating despite an existing similarly-named organizer.'),
         ];

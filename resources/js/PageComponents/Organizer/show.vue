@@ -91,6 +91,48 @@
                                 {{ organizer.patreon }}
                             </span>
                         </a>
+
+                        <!-- Threads -->
+                        <a v-if="organizer.threadsHandle"
+                           :href="`https://www.threads.com/@${organizer.threadsHandle}`"
+                           target="_blank"
+                           rel="nofollow noopener noreferrer"
+                           class="flex items-center md:gap-4 group md:w-full">
+                            <div class="w-16 h-16 flex items-center justify-center rounded-full bg-neutral-100 group-hover:bg-neutral-200 transition-colors">
+                                <component :is="RiThreadsLine" class="w-8 h-8 text-neutral-700" />
+                            </div>
+                            <span class="text-lg text-gray-600 group-hover:text-gray-900 transition-colors hidden md:inline">
+                                @{{ organizer.threadsHandle }}
+                            </span>
+                        </a>
+
+                        <!-- Bluesky -->
+                        <a v-if="organizer.blueskyHandle"
+                           :href="`https://bsky.app/profile/${organizer.blueskyHandle}`"
+                           target="_blank"
+                           rel="nofollow noopener noreferrer"
+                           class="flex items-center md:gap-4 group md:w-full">
+                            <div class="w-16 h-16 flex items-center justify-center rounded-full bg-neutral-100 group-hover:bg-neutral-200 transition-colors">
+                                <component :is="RiBlueskyLine" class="w-8 h-8 text-neutral-700" />
+                            </div>
+                            <span class="text-lg text-gray-600 group-hover:text-gray-900 transition-colors hidden md:inline">
+                                @{{ organizer.blueskyHandle }}
+                            </span>
+                        </a>
+
+                        <!-- LinkedIn -->
+                        <a v-if="organizer.linkedinUrl"
+                           :href="organizer.linkedinUrl"
+                           target="_blank"
+                           rel="nofollow noopener noreferrer"
+                           class="flex items-center md:gap-4 group md:w-full">
+                            <div class="w-16 h-16 flex items-center justify-center rounded-full bg-neutral-100 group-hover:bg-neutral-200 transition-colors">
+                                <component :is="RiLinkedinLine" class="w-8 h-8 text-neutral-700" />
+                            </div>
+                            <span class="text-lg text-gray-600 group-hover:text-gray-900 transition-colors hidden md:inline">
+                                LinkedIn
+                            </span>
+                        </a>
                     </div>
                 </div>
             </div>
@@ -174,14 +216,17 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
-import { 
+import {
     RiGlobalLine,
     RiTwitterLine,
     RiInstagramLine,
     RiFacebookBoxLine,
     RiMailLine,
-    RiPatreonLine
-} from '@remixicon/vue';
+    RiPatreonLine,
+    RiThreadsLine,
+    RiBlueskyLine,
+    RiLinkedinLine
+} from "@remixicon/vue";
 import EventListings from '@/GlobalComponents/Grid/event-grid.vue'
 import Pagination from '@/GlobalComponents/pagination.vue'
 import OrganizerProfileCard from '@/GlobalComponents/organizer-profile-card.vue'
@@ -253,7 +298,10 @@ const hasSocialLinks = computed(() => {
         props.organizer.twitterHandle ||
         props.organizer.instagramHandle ||
         props.organizer.facebookHandle ||
-        props.organizer.patreon
+        props.organizer.patreon ||
+        props.organizer.threadsHandle ||
+        props.organizer.blueskyHandle ||
+        props.organizer.linkedinUrl
     );
 });
 

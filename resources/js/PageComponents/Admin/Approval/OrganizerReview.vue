@@ -179,15 +179,18 @@
 
 <script setup>
 import { ref, watch } from 'vue';
-import { 
+import {
     RiMailLine,
     RiSearchLine,
     RiTwitterLine,
     RiInstagramLine,
     RiFacebookBoxLine,
     RiPatreonLine,
-    RiGlobalLine
-} from '@remixicon/vue';
+    RiGlobalLine,
+    RiThreadsLine,
+    RiBlueskyLine,
+    RiLinkedinLine
+} from "@remixicon/vue";
 import LoadingSpinner from '@/GlobalComponents/loading-spinner.vue';
 
 const props = defineProps({
@@ -233,6 +236,24 @@ const socialMediaList = [
         model: 'patreon',
         icon: RiPatreonLine,
         placeholder: 'Patreon URL'
+    },
+    {
+        name: 'threads',
+        model: 'threadsHandle',
+        icon: RiThreadsLine,
+        placeholder: 'Threads Handle'
+    },
+    {
+        name: 'bluesky',
+        model: 'blueskyHandle',
+        icon: RiBlueskyLine,
+        placeholder: 'Bluesky Handle'
+    },
+    {
+        name: 'linkedin',
+        model: 'linkedinUrl',
+        icon: RiLinkedinLine,
+        placeholder: 'LinkedIn Link'
     }
 ];
 

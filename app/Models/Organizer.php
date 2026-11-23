@@ -115,7 +115,7 @@ class Organizer extends Model
     }
 
     protected $fillable = [
-        'user_id', 'name', 'website', 'slug', 'description', 'rating', 'largeImagePath', 'thumbImagePath', 'instagramHandle', 'twitterHandle', 'facebookHandle', 'email', 'status', 'patreon',
+        'user_id', 'name', 'website', 'slug', 'description', 'rating', 'largeImagePath', 'thumbImagePath', 'instagramHandle', 'twitterHandle', 'facebookHandle', 'email', 'status', 'patreon', 'threadsHandle', 'blueskyHandle', 'linkedinUrl',
     ];
 
     public function getRouteKeyName()
@@ -250,6 +250,15 @@ class Organizer extends Model
         }
         if ($this->twitterHandle) {
             array_push($result, "https://www.twitter.com/{$this->twitterHandle}");
+        }
+        if ($this->threadsHandle) {
+            array_push($result, "https://www.threads.com/@{$this->threadsHandle}");
+        }
+        if ($this->blueskyHandle) {
+            array_push($result, "https://bsky.app/profile/{$this->blueskyHandle}");
+        }
+        if ($this->linkedinUrl) {
+            array_push($result, $this->linkedinUrl);
         }
 
         return $result;

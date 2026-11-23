@@ -163,11 +163,7 @@ class OrganizerController extends Controller
             // See OrganizerRules::normalizeHandle() — strips a leading "@"
             // a user may have typed/pasted, since every display site
             // prepends its own.
-            foreach (['instagramHandle', 'twitterHandle'] as $field) {
-                if (array_key_exists($field, $data)) {
-                    $data[$field] = OrganizerRules::normalizeHandle($data[$field]);
-                }
-            }
+            $data = OrganizerRules::tidy($data);
 
             // Only remove name from update if status is 'p' and name is different
             if ($organizer->status === 'p' && isset($data['name']) && $data['name'] !== $organizer->name) {

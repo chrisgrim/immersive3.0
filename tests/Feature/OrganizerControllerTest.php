@@ -257,6 +257,37 @@ test('update strips a leading @ from twitter/instagram handles', function () {
     expect($organizer->twitterHandle)->toBe('mytwitter');
 });
 
+test('update saves Threads, Bluesky and LinkedIn, tidied', function () {
+    $owner = User::factory()->create(['type' => 'u']);
+    $organizer = Organizer::factory()->create(['user_id' => $owner->id, 'status' => 'd']);
+
+    $this->actingAs($owner)
+        ->postJson("/organizers/{$organizer->slug}", [
+            'threadsHandle' => '@my.threads',
+            'blueskyHandle' => '@me.bsky.social',
+            'linkedinUrl' => 'linkedin.com/company/my-company',
+        ])
+        ->assertOk();
+
+    $organizer->refresh();
+    expect($organizer->threadsHandle)->toBe('my.threads')
+        ->and($organizer->blueskyHandle)->toBe('me.bsky.social')
+        ->and($organizer->linkedinUrl)->toBe('https://linkedin.com/company/my-company');
+});
+
+test('update refuses a Bluesky handle or LinkedIn link it cannot read', function () {
+    $owner = User::factory()->create(['type' => 'u']);
+    $organizer = Organizer::factory()->create(['user_id' => $owner->id, 'status' => 'd']);
+
+    $this->actingAs($owner)
+        ->postJson("/organizers/{$organizer->slug}", [
+            'blueskyHandle' => 'just a name',
+            'linkedinUrl' => 'https://example.com/me',
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['blueskyHandle', 'linkedinUrl']);
+});
+
 test('update on a draft organizer changes the name directly', function () {
     $owner = User::factory()->create(['type' => 'u']);
     $organizer = Organizer::factory()->create([

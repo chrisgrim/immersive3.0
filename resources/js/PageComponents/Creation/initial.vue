@@ -221,6 +221,11 @@
                                    class="text-red-500 text-sm mt-1 absolute top-16 leading-none">
                                     Patreon handle must be less than {{ media.maxLength }} characters
                                 </p>
+                                <!-- What the server said (a Threads, Bluesky or LinkedIn entry it could not read). -->
+                                <p v-if="errors[media.model]"
+                                   class="text-red-500 text-sm mt-1 absolute top-16 leading-none pr-4">
+                                    {{ errors[media.model][0] }}
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -347,7 +352,10 @@ import {
     RiTwitterLine,
     RiFacebookLine,
     RiPatreonLine,
-    RiImageAddLine
+    RiImageAddLine,
+    RiThreadsLine,
+    RiBlueskyLine,
+    RiLinkedinLine
 } from "@remixicon/vue";
 
 // Define props
@@ -363,6 +371,9 @@ const props = defineProps({
             twitterHandle: '',
             facebookHandle: '',
             patreon: '',
+            threadsHandle: '',
+            blueskyHandle: '',
+            linkedinUrl: '',
             thumbImagePath: ''
         })
     },
@@ -414,6 +425,18 @@ const rules = {
         patreon: { 
             maxLength: maxLength(30),
             $autoDirty: true 
+        },
+        threadsHandle: {
+            maxLength: maxLength(30),
+            $autoDirty: true
+        },
+        blueskyHandle: {
+            maxLength: maxLength(253),
+            $autoDirty: true
+        },
+        linkedinUrl: {
+            maxLength: maxLength(255),
+            $autoDirty: true
         }
     }
 };
@@ -509,7 +532,7 @@ const showValidationError = (media) => {
         return $v.value?.team?.email?.$dirty && $v.value?.team?.email?.$invalid;
     }
     // Add validation for social media handles
-    if (['instagramHandle', 'twitterHandle', 'facebookHandle', 'patreon'].includes(media.name)) {
+    if (['instagramHandle', 'twitterHandle', 'facebookHandle', 'patreon', 'threadsHandle', 'blueskyHandle', 'linkedinUrl'].includes(media.name)) {
         return $v.value?.team?.[media.model]?.$dirty && $v.value?.team?.[media.model]?.$invalid;
     }
     return false;
@@ -675,7 +698,7 @@ const handleSocialInput = (media) => {
 // can't be the ONLY place this is enforced: MCP/API callers never go
 // through this input at all.
 const stripLeadingAt = (media) => {
-    if (media.name !== 'instagramHandle' && media.name !== 'twitterHandle') return;
+    if (!['instagramHandle', 'twitterHandle', 'threadsHandle', 'blueskyHandle'].includes(media.name)) return;
     if (team[media.model]) {
         team[media.model] = team[media.model].replace(/^@+/, '');
     }
@@ -727,6 +750,30 @@ const socialMediaList = [
         model: 'patreon',
         maxLength: 30,
         inputHandler: handleSocialInput 
+    },
+    {
+        name: 'threadsHandle',
+        icon: RiThreadsLine,
+        placeholder: 'Threads Handle',
+        model: 'threadsHandle',
+        maxLength: 30,
+        inputHandler: handleSocialInput
+    },
+    {
+        name: 'blueskyHandle',
+        icon: RiBlueskyLine,
+        placeholder: 'Bluesky Handle',
+        model: 'blueskyHandle',
+        maxLength: 253,
+        inputHandler: handleSocialInput
+    },
+    {
+        name: 'linkedinUrl',
+        icon: RiLinkedinLine,
+        placeholder: 'LinkedIn Page Link',
+        model: 'linkedinUrl',
+        maxLength: 255,
+        inputHandler: handleSocialInput
     }
 ];
 

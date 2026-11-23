@@ -145,6 +145,18 @@
                             <component :is="RiPatreonLine" class="w-5 h-5 text-neutral-500" />
                             <span class="text-neutral-600 truncate">{{ organizer.patreon }}</span>
                         </div>
+                        <div v-if="organizer.threadsHandle" class="flex items-center gap-2">
+                            <component :is="RiThreadsLine" class="w-5 h-5 text-neutral-500" />
+                            <span class="text-neutral-600 truncate">@{{ organizer.threadsHandle }}</span>
+                        </div>
+                        <div v-if="organizer.blueskyHandle" class="flex items-center gap-2">
+                            <component :is="RiBlueskyLine" class="w-5 h-5 text-neutral-500" />
+                            <span class="text-neutral-600 truncate">@{{ organizer.blueskyHandle }}</span>
+                        </div>
+                        <div v-if="organizer.linkedinUrl" class="flex items-center gap-2">
+                            <component :is="RiLinkedinLine" class="w-5 h-5 text-neutral-500" />
+                            <span class="text-neutral-600 truncate">LinkedIn</span>
+                        </div>
                         <div v-if="!hasSocialLinks" class="text-neutral-500">
                             No social links set
                         </div>
@@ -157,14 +169,17 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue';
-import { 
+import {
     RiSearchLine,
     RiTwitterLine,
     RiInstagramLine,
     RiFacebookBoxLine,
     RiMailLine,
-    RiPatreonLine
-} from '@remixicon/vue';
+    RiPatreonLine,
+    RiThreadsLine,
+    RiBlueskyLine,
+    RiLinkedinLine
+} from "@remixicon/vue";
 
 const props = defineProps({
     organizer: {
@@ -214,7 +229,10 @@ const hasSocialLinks = computed(() => {
         props.organizer.twitterHandle ||
         props.organizer.instagramHandle ||
         props.organizer.facebookHandle ||
-        props.organizer.patreon
+        props.organizer.patreon ||
+        props.organizer.threadsHandle ||
+        props.organizer.blueskyHandle ||
+        props.organizer.linkedinUrl
     );
 });
 

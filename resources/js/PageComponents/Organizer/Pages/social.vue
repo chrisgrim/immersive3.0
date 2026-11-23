@@ -75,7 +75,10 @@ import {
     RiTwitterLine,
     RiFacebookLine,
     RiPatreonLine,
-    RiGlobalLine
+    RiGlobalLine,
+    RiThreadsLine,
+    RiBlueskyLine,
+    RiLinkedinLine
 } from "@remixicon/vue";
 
 const organizer = inject('organizer');
@@ -120,6 +123,24 @@ const socialMediaList = [
         model: 'patreon',
         icon: RiPatreonLine,
         placeholder: 'Add your Patreon URL'
+    },
+    {
+        name: 'threads',
+        model: 'threadsHandle',
+        icon: RiThreadsLine,
+        placeholder: 'Add your Threads handle'
+    },
+    {
+        name: 'bluesky',
+        model: 'blueskyHandle',
+        icon: RiBlueskyLine,
+        placeholder: 'Add your Bluesky handle'
+    },
+    {
+        name: 'linkedin',
+        model: 'linkedinUrl',
+        icon: RiLinkedinLine,
+        placeholder: 'Add your LinkedIn page link'
     }
 ];
 
@@ -152,7 +173,7 @@ const handleDivClick = async (mediaName) => {
 // place this is enforced, but it means a human filling out this form never
 // sees the doubled "@" in the first place).
 const stripLeadingAt = (media) => {
-    if (media.name !== 'instagram' && media.name !== 'twitter') return;
+    if (!['instagram', 'twitter', 'threads', 'bluesky'].includes(media.name)) return;
     if (organizer[media.model]) {
         organizer[media.model] = organizer[media.model].replace(/^@+/, '');
     }
@@ -186,7 +207,10 @@ defineExpose({
             instagramHandle: organizer.instagramHandle,
             twitterHandle: organizer.twitterHandle,
             facebookHandle: organizer.facebookHandle,
-            patreon: organizer.patreon
+            patreon: organizer.patreon,
+            threadsHandle: organizer.threadsHandle,
+            blueskyHandle: organizer.blueskyHandle,
+            linkedinUrl: organizer.linkedinUrl
         };
     }
 });
