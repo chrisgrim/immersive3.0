@@ -65,7 +65,7 @@ class PageMeta
         return self::sentences([...$facts, $words]);
     }
 
-    /** "Run name: 3 cities incl. London, Paris" for a show with many runs. */
+    /** "Show: London and Paris" for two or three places, "Show: 5 cities incl. London, Paris" for more. */
     public static function projectTitle(Project $project, array $page): string
     {
         $cities = self::runPlaces($page);
@@ -74,6 +74,7 @@ class PageMeta
         $tail = match (true) {
             $count === 0 => 'Dates and tickets',
             $count === 1 => $cities->first(),
+            $count <= 3 => $cities->join(', ', ' and '),
             default => "{$count} cities incl. ".$cities->take(2)->implode(', '),
         };
 
@@ -84,7 +85,10 @@ class PageMeta
     {
         $cities = self::runPlaces($page);
         $more = $cities->count() - 4;
-        $where = $cities->take(4)->implode(', ').($more > 0 ? " and {$more} more" : '');
+        // "London and Paris", "London, Paris and Berlin", "A, B, C, D and 2 more".
+        $where = $more > 0
+            ? $cities->take(4)->implode(', ')." and {$more} more"
+            : $cities->join(', ', ' and ');
 
         $price = collect($page['from'] ?? [])->first();
 
