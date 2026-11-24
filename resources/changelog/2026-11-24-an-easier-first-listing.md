@@ -17,7 +17,11 @@ We also reworded parts of the listing flow to be clearer. For example, "Describe
 
 If it is your first time listing with us, you now get a short welcome before you start. It explains that you make your organization first and then your listing, and it points out the Tips and Questions buttons in case you get stuck.
 
+![The first-time welcome: "Looks like this is your first time making a listing with us!", with a Got it button and the Tips and Questions buttons in the top right](/images/changelog/first-listing-welcome.jpg)
+
 Once your organization is made, an empty events page used to leave you guessing what to do next. Now it shows one big **Create a new listing** button.
+
+![An organization's empty events page with "Make your first listing" and a Create a new listing button](/images/changelog/first-listing-empty-events.jpg)
 
 ## More ways to link your organization
 

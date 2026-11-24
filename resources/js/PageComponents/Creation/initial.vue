@@ -36,13 +36,13 @@
                     </button>
                 </div>
                 <div v-else key="step">
-                    <div class="h-40 sm:h-60" id="intro" :class="{ shrink: !!team.name || !!team.description }">
+                    <div id="intro" :class="{ shrink: !!team.name || !!team.description }">
                         <h5 class="font-bold">Step 1</h5>
-                        <h3 class="mt-6 sm:mt-10 mb-16 sm:mb-28 text-4xl sm:text-6xl leading-[3rem] sm:leading-[4rem]">
+                        <h3 class="mt-6 sm:mt-10 mb-6 sm:mb-8 text-4xl sm:text-6xl leading-[3rem] sm:leading-[4rem]">
                             Let's create your organization
                         </h3>
                     </div>
-                    <p class="-mt-8 sm:-mt-16 mb-12 text-[1.5rem] leading-[2.2rem] text-neutral-500" data-browse-note>
+                    <p class="mb-12 text-[1.5rem] leading-[2.2rem] text-neutral-500" data-browse-note>
                         Just looking to browse, search, and favorite? Head back to the <a href="/" class="underline">front page</a> or your <a href="/account-settings" class="underline">profile</a>. You can skip all this!
                     </p>
                     
@@ -880,13 +880,15 @@ const requestOwnership = async (org) => {
 </script>
 
 <style>
+    /* As tall as the heading needs (one line or two); typing a name folds it away. */
     #intro {
-        transition: height 1.25s ease-in, transform 1.25s ease-in, opacity 1.25s ease-in;
+        max-height: 24rem;
+        transition: max-height 1.25s ease-out, opacity 1.25s ease-in;
         overflow: hidden;
     }
 
-    .shrink {
-        height: 0;
+    #intro.shrink {
+        max-height: 0;
         opacity: 0;
     }
 
