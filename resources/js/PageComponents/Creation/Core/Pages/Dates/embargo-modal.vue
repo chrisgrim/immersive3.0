@@ -66,8 +66,8 @@
 
                 <div class="flex items-center justify-between gap-4 px-[2.4rem] md:px-[6.4rem] py-[2rem] border-t border-[#ebebeb] flex-shrink-0">
                     <button type="button" class="text-[1.6rem] font-semibold text-[#222222] underline px-2 py-2 rounded-lg hover:bg-[#f7f7f7]" @click="$emit('cancel')">Cancel</button>
-                    <button type="button" :disabled="!day || isPast" class="h-[4.8rem] px-[2.4rem] rounded-[0.8rem] bg-[#222222] hover:bg-black text-white text-[1.6rem] font-semibold disabled:bg-[#dddddd] disabled:cursor-not-allowed" data-embargo-save @click="save">
-                        {{ !day ? 'Pick a day' : (isPast ? 'Pick a later time' : `Go live ${summary}`) }}
+                    <button type="button" :disabled="!day || isPast || isLate" class="h-[4.8rem] px-[2.4rem] rounded-[0.8rem] bg-[#222222] hover:bg-black text-white text-[1.6rem] font-semibold disabled:bg-[#dddddd] disabled:cursor-not-allowed" data-embargo-save @click="save">
+                        {{ !day ? 'Pick a day' : (isPast ? 'Pick a later time' : (isLate ? 'Pick a day by the last show' : `Go live ${summary}`)) }}
                     </button>
                 </div>
             </div>
@@ -135,6 +135,8 @@ const summary = computed(() => {
 });
 
 // The day and time must still be ahead where the event is (the server refuses a past one).
+// A day kept from before the run was shortened can be past the last show.
+const isLate = computed(() => Boolean(props.lastDay) && normalizeDateToTimezone(day.value, props.timezone) > props.lastDay);
 const isPast = computed(() => {
     const picked = normalizeDateToTimezone(day.value, props.timezone);
     return Boolean(picked) && !moment.tz(`${picked} ${time.value}`, 'YYYY-MM-DD HH:mm', props.timezone).isAfter(moment());
@@ -174,7 +176,7 @@ const unlockPage = () => {
 };
 
 const save = () => {
-    if (!day.value || isPast.value) return;
+    if (!day.value || isPast.value || isLate.value) return;
     emit('save', embargoDateForAPI(day.value, props.timezone, time.value));
 };
 </script>

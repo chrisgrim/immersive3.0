@@ -44,6 +44,7 @@
 </template>
 
 <script setup>
+import { removeLeafletMap } from '@/composables/removeLeafletMap';
 import { ref, computed, nextTick, onMounted, onBeforeUnmount, watch } from 'vue'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet.markercluster/dist/MarkerCluster.css'
@@ -438,7 +439,7 @@ watch(() => selectedMarker.value, () => {
 onBeforeUnmount(() => {
     if (map) {
         map.off('moveend', mapMoved);
-        map.remove();
+        removeLeafletMap(map);
         map = null;
     }
     

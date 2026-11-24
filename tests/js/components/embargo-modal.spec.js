@@ -21,13 +21,13 @@ describe('go-live pop-up', () => {
     });
 
     it('opens on the saved day and time, and saves the time picked', async () => {
-        const wrapper = mountModal('2026-11-22 08:00:00');
+        const wrapper = mountModal('2099-11-22 08:00:00');
         expect(wrapper.find('[data-embargo-time]').element.value).toBe('08:00');
         expect(wrapper.find('[data-embargo-save]').text()).toContain('Nov 22, 8:00 AM (PST)');
 
         await wrapper.find('[data-embargo-time]').setValue('18:30');
         await wrapper.find('[data-embargo-save]').trigger('click');
-        expect(wrapper.emitted('save')[0]).toEqual(['2026-11-22 18:30:00']);
+        expect(wrapper.emitted('save')[0]).toEqual(['2099-11-22 18:30:00']);
     });
 });
 

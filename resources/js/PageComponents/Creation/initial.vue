@@ -188,7 +188,7 @@
                                     v-model="team[media.model]"
                                     @blur="handleInputBlur(media.name)"
                                     @focus="handleDivClick(media.name)"
-                                    @input="media.inputHandler && media.inputHandler($event); stripLeadingAt(media)"
+                                    @input="clearServerError(media); media.inputHandler && media.inputHandler($event, media); stripLeadingAt(media)"
                                     rows="2"
                                     class="p-2 mt-2 border-none rounded-md w-full text-lg resize-none"
                                     @click.stop
@@ -197,29 +197,33 @@
                                
                                 
                                 <!-- Updated Error Messages -->
-                                <p v-if="media.name === 'website' && team.website && $v.team?.website?.$dirty && $v.team?.website?.$invalid" 
+                                <p v-if="media.name === 'website' && !errors.website && team.website && $v.team?.website?.$dirty && $v.team?.website?.$invalid" 
                                    class="text-red-500 text-sm mt-1 absolute top-16 leading-none">
                                     Website must start with https:// (e.g., https://example.com)
                                 </p>
-                                <p v-if="media.name === 'email' && team.email && $v.team?.email?.$dirty && $v.team?.email?.$invalid" 
+                                <p v-if="media.name === 'email' && !errors.email && team.email && $v.team?.email?.$dirty && $v.team?.email?.$invalid" 
                                    class="text-red-500 text-sm mt-1 absolute top-16 leading-none">
                                     Please enter a valid email address
                                 </p>
                                 <p v-if="media.name === 'instagramHandle' && team.instagramHandle && $v.team?.instagramHandle?.$dirty && $v.team?.instagramHandle?.$invalid" 
                                    class="text-red-500 text-sm mt-1 absolute top-16 leading-none">
-                                    Instagram handle must be less than {{ media.maxLength }} characters
+                                    Instagram handle: {{ media.maxLength }} characters or fewer
                                 </p>
                                 <p v-if="media.name === 'twitterHandle' && team.twitterHandle && $v.team?.twitterHandle?.$dirty && $v.team?.twitterHandle?.$invalid" 
                                    class="text-red-500 text-sm mt-1 absolute top-16 leading-none">
-                                    Twitter handle must be less than {{ media.maxLength }} characters
+                                    Twitter handle: {{ media.maxLength }} characters or fewer
                                 </p>
                                 <p v-if="media.name === 'facebookHandle' && team.facebookHandle && $v.team?.facebookHandle?.$dirty && $v.team?.facebookHandle?.$invalid" 
                                    class="text-red-500 text-sm mt-1 absolute top-16 leading-none">
-                                    Facebook handle must be less than {{ media.maxLength }} characters
+                                    Facebook handle: {{ media.maxLength }} characters or fewer
                                 </p>
                                 <p v-if="media.name === 'patreon' && team.patreon && $v.team?.patreon?.$dirty && $v.team?.patreon?.$invalid" 
                                    class="text-red-500 text-sm mt-1 absolute top-16 leading-none">
-                                    Patreon handle must be less than {{ media.maxLength }} characters
+                                    Patreon handle: {{ media.maxLength }} characters or fewer
+                                </p>
+                                <p v-if="['threadsHandle', 'blueskyHandle', 'linkedinUrl'].includes(media.name) && !errors[media.model] && team[media.model] && $v.team?.[media.model]?.$dirty && $v.team?.[media.model]?.$invalid"
+                                   class="text-red-500 text-sm mt-1 absolute top-16 leading-none pr-4">
+                                    {{ media.maxLength }} characters or fewer
                                 </p>
                                 <!-- What the server said (a Threads, Bluesky or LinkedIn entry it could not read). -->
                                 <p v-if="errors[media.model]"
@@ -339,8 +343,6 @@ import { ref, reactive, nextTick, computed, provide } from 'vue';
 // The Tips pop-up's state, read by TipsButton and HelperTip.
 provide('helperTips', reactive({ open: false, count: 0 }));
 
-// The hello comes first; Got it shows Step 1.
-const started = ref(false);
 import { useVuelidate } from '@vuelidate/core';
 import { required, email, maxLength, helpers } from '@vuelidate/validators';
 import axios from 'axios';
@@ -382,6 +384,10 @@ const props = defineProps({
         required: true
     }
 });
+// The hello comes first, for someone with no organization yet; Got it shows Step 1.
+// Someone adding another organization (the "+" on Teams) goes straight to the form.
+const started = ref(Boolean(props.user?.hasCreatedOrganizers));
+
 
 // Create a reactive team object for use with Vuelidate
 const team = reactive(props.team);
@@ -435,7 +441,7 @@ const rules = {
             $autoDirty: true
         },
         linkedinUrl: {
-            maxLength: maxLength(255),
+            maxLength: maxLength(240),
             $autoDirty: true
         }
     }
@@ -523,6 +529,10 @@ const isDescriptionNearLimit = computed(() => {
 });
 
 const showValidationError = (media) => {
+    // What the server refused stays red until it is edited.
+    if (media?.model && errors.value[media.model]) {
+        return true;
+    }
     if (!media?.model || !team[media.model]) return false;
     
     if (media.name === 'website') {
@@ -686,7 +696,15 @@ const handleDescriptionInput = (event) => {
 };
 
 // Update handleSocialInput to use Vuelidate
-const handleSocialInput = (media) => {
+// Editing a field clears what the server said about it.
+const clearServerError = (media) => {
+    if (media?.model && errors.value[media.model]) {
+        const { [media.model]: _, ...rest } = errors.value;
+        errors.value = rest;
+    }
+};
+
+const handleSocialInput = (event, media) => {
     if (!media?.model) return;
     $v.value.team[media.model]?.$touch();
 };
@@ -772,7 +790,7 @@ const socialMediaList = [
         icon: RiLinkedinLine,
         placeholder: 'LinkedIn Page Link',
         model: 'linkedinUrl',
-        maxLength: 255,
+        maxLength: 240,
         inputHandler: handleSocialInput
     }
 ];

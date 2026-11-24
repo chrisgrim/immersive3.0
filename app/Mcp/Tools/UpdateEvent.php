@@ -639,9 +639,10 @@ class UpdateEvent extends Tool
                     $this->syntheticRequest($rest, $user)
                 );
             } catch (\Illuminate\Validation\ValidationException $e) {
-                // Raised under the event lock when the saved schedule as a
-                // whole would be too big (Show::saveShows). The schedule is
-                // left as it was.
+                // Raised when the saved schedule as a whole would be too big
+                // (Show::saveShows, under the event lock) or a Go Live date
+                // would land after the last show (checked before any write).
+                // The schedule is left as it was.
                 return Response::json([
                     'error' => 'validation_failed',
                     'errors' => $e->errors(),

@@ -2493,6 +2493,25 @@ test('update-event refuses an embargo sent on its own for a finished run', funct
     expect($after->status)->toBe('p')->and($after->embargo_date)->toBeNull();
 });
 
+test('update-event refuses a Go Live date after the last show and saves none of the call', function () {
+    $user = writeToolUser();
+    $day = scheduleDay(10);
+    $event = liveEvent($user, 's', [scheduleDay(5)], ['closingDate' => scheduleDay(5), 'tag_line' => 'Before']);
+
+    EiServer::actingAs($user)->tool(UpdateEvent::class, [
+        'event_slug' => $event->slug,
+        'tag_line' => 'After',
+        'showtype' => 's',
+        'dateArray' => [$day],
+        'embargo_date' => now()->addDays(20)->format('Y-m-d').' 12:00:00',
+        'confirm_live_edit' => true,
+        'confirm_schedule_replace' => true,
+    ])->assertOk()->assertSee('validation_failed')->assertSee('after the last show');
+
+    $after = $event->fresh();
+    expect($after->tag_line)->toBe('Before')->and($after->status)->toBe('p')->and($after->embargo_date)->toBeNull();
+});
+
 test('update-event cannot turn an expired sentinel into dated history by echoing its datetime', function () {
     $user = writeToolUser();
     $tz = 'America/Toronto';

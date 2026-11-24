@@ -194,7 +194,7 @@
                 </div>
 
                 <!-- Embargo Calendar Modal -->
-                <EmbargoModal v-if="showEmbargoModal" :embargo-date="event.embargo_date" :timezone="localTimezone" :last-day="lastShowDay" @save="saveEmbargo" @cancel="cancelEmbargoDate" />
+                <EmbargoModal v-if="showEmbargoModal" :embargo-date="event.embargo_date" :timezone="localTimezone" :last-day="isStaff ? null : lastShowDay" @save="saveEmbargo" @cancel="cancelEmbargoDate" />
 
                 <!-- Start Date Modal -->
                 <div v-if="showStartDateModal" role="dialog" aria-modal="true" aria-label="Select start date" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1003] p-4 overflow-y-auto">
@@ -637,6 +637,8 @@ const generatedDates = computed(() => {
 });
 
 const selectedDatesCount = computed(() => generatedDateStrings.value.length);
+// Staff may set a re-launch Go Live date on a finished run (the server allows it).
+const isStaff = computed(() => Boolean(user?.isAdmin || user?.isModerator));
 // The Go Live date can be no later than this.
 const lastShowDay = computed(() => generatedDateStrings.value.map((day) => String(day).slice(0, 10)).sort().at(-1) ?? null);
 

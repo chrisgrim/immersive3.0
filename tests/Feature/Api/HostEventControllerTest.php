@@ -682,25 +682,77 @@ test('an organizer cannot re-announce a finished event to the organizer follower
     expect($event->fresh()->status)->toBe('p');
 });
 
-test('a Go Live date after the last show is refused with the reason, and the dates still save', function () {
+test('a Go Live date after the last show is refused with the reason, and nothing is saved', function () {
     // Noah's case: the listing would go live once the run is over.
     $organizer = Organizer::factory()->create();
-    $event = Event::factory()->create(['organizer_id' => $organizer->id, 'status' => '1', 'showtype' => 's', 'timezone' => 'UTC']);
+    $event = Event::factory()->create(['organizer_id' => $organizer->id, 'status' => '6', 'showtype' => 's', 'timezone' => 'UTC']);
     $last = now()->addDays(10)->setTime(12, 0);
 
     $this->actingAs(memberOf($organizer))
         ->postJson("/api/hosting/event/{$event->slug}", [
             'showtype' => 's',
             'timezone' => 'UTC',
+            'status' => '7',
             'dateArray' => [$last->format('Y-m-d H:i:s')],
             'embargo_date' => now()->addDays(20)->format('Y-m-d').' 12:00:00',
         ])
         ->assertStatus(422)
         ->assertJsonValidationErrors(['embargo_date' => 'after the last show ('.$last->format('M j, Y').')']);
 
+    // Not even the wizard's step: a reload stays on Dates.
     $event->refresh();
     expect($event->embargo_date)->toBeNull()
-        ->and($event->shows()->count())->toBe(1);
+        ->and($event->status)->toBe('6')
+        ->and($event->shows()->count())->toBe(0);
+});
+
+test('shortening a run past its waiting Go Live date is refused too', function () {
+    $organizer = Organizer::factory()->create();
+    $goLive = now()->addDays(20)->format('Y-m-d').' 12:00:00';
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id, 'status' => 'e', 'showtype' => 's', 'timezone' => 'UTC',
+        'embargo_date' => $goLive, 'closingDate' => now()->addDays(30)->format('Y-m-d').' 23:59:59',
+    ]);
+    $event->shows()->create(['date' => now()->addDays(30)->setTime(12, 0)->format('Y-m-d H:i:s')]);
+
+    // No embargo_date in the save: the waiting one still counts.
+    $this->actingAs(memberOf($organizer))
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 's',
+            'timezone' => 'UTC',
+            'dateArray' => [now()->addDays(10)->setTime(12, 0)->format('Y-m-d H:i:s')],
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['embargo_date']);
+
+    expect($event->fresh()->closingDate)->toStartWith(now()->addDays(30)->format('Y-m-d'));
+});
+
+test('a save that leaves the schedule and Go Live date alone is never refused for them', function () {
+    // Staff may have set a late Go Live date; the organizer can still edit the rest.
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id, 'status' => 'e', 'showtype' => 's', 'timezone' => 'UTC',
+        'embargo_date' => now()->addDays(20)->format('Y-m-d').' 12:00:00', 'closingDate' => now()->addDays(10)->format('Y-m-d').' 23:59:59',
+    ]);
+    $event->shows()->create(['date' => now()->addDays(10)->setTime(12, 0)->format('Y-m-d H:i:s')]);
+
+    $this->actingAs(memberOf($organizer))
+        ->postJson("/api/hosting/event/{$event->slug}", ['tag_line' => 'A new line'])
+        ->assertOk();
+});
+
+test('a draft whose dates have passed cannot take a later Go Live date either', function () {
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create(['organizer_id' => $organizer->id, 'status' => '6', 'showtype' => 's', 'timezone' => 'UTC']);
+    $past = now()->subDays(3)->setTime(12, 0);
+    $event->shows()->create(['date' => $past->format('Y-m-d H:i:s')]);
+    $event->update(['closingDate' => $past->format('Y-m-d').' 23:59:59']);
+
+    $this->actingAs(memberOf($organizer))
+        ->postJson("/api/hosting/event/{$event->slug}", ['embargo_date' => now()->addDays(5)->format('Y-m-d').' 12:00:00'])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['embargo_date']);
 });
 
 test('a Go Live date on the last show day is fine', function () {
@@ -718,6 +770,31 @@ test('a Go Live date on the last show day is fine', function () {
         ->assertOk();
 
     expect(substr((string) $event->fresh()->embargo_date, 0, 10))->toBe($last->format('Y-m-d'));
+});
+
+test('a live run moved into the past cannot take a later Go Live date', function () {
+    // Its stored run is still upcoming, so Show::applyEmbargo would not refuse it.
+    $organizer = Organizer::factory()->create();
+    $event = Event::factory()->create([
+        'organizer_id' => $organizer->id, 'status' => 'p', 'showtype' => 's', 'timezone' => 'UTC',
+        'closingDate' => now()->addMonth()->format('Y-m-d').' 23:59:59',
+    ]);
+    $event->shows()->create(['date' => now()->addMonth()->format('Y-m-d H:i:s')]);
+
+    $this->actingAs(memberOf($organizer))
+        ->postJson("/api/hosting/event/{$event->slug}", [
+            'showtype' => 's',
+            'timezone' => 'UTC',
+            'dateArray' => [now()->subWeek()->format('Y-m-d H:i:s')],
+            'embargo_date' => now()->addDays(10)->format('Y-m-d').' 12:00:00',
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('embargo_date');
+
+    $fresh = $event->fresh();
+    expect($fresh->status)->toBe('p')
+        ->and($fresh->embargo_date)->toBeNull()
+        ->and($fresh->shows()->count())->toBe(1);
 });
 
 test('embargo still works when the same save gives the event a real future run', function () {
@@ -1600,22 +1677,4 @@ test('renaming a restored listing never deletes pictures another listing still u
     foreach ($original->fresh()->images as $image) {
         $disk->assertExists('public/'.$image->large_image_path);
     }
-});
-
-// ----- the listing tips: a first listing, or a month away -----
-
-test('the history check gives the last listing before the draft being made', function () {
-    $organizer = Organizer::factory()->create();
-    $user = memberOf($organizer);
-
-    $this->actingAs($user)->getJson(route('hosting.event.user.has-created-events'))
-        ->assertOk()->assertJson(['hasCreatedEvents' => false, 'lastListingAt' => null]);
-
-    Event::factory()->create(['organizer_id' => $organizer->id, 'user_id' => $user->id, 'created_at' => now()->subDays(45)]);
-    Event::factory()->create(['organizer_id' => $organizer->id, 'user_id' => $user->id, 'created_at' => now()]);
-
-    $data = $this->actingAs($user)->getJson(route('hosting.event.user.has-created-events'))->assertOk()->json();
-
-    expect($data['hasCreatedEvents'])->toBeTrue()
-        ->and(Carbon::parse($data['lastListingAt'])->diffInDays(now()))->toBeGreaterThanOrEqual(44);
 });

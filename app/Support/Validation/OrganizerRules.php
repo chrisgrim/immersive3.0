@@ -45,7 +45,7 @@ class OrganizerRules
             // A Bluesky handle is a domain name: name.bsky.social or the organization's own.
             'blueskyHandle' => ['nullable', 'string', 'max:253', 'regex:/^@?([A-Za-z0-9-]+\.)+[A-Za-z]{2,}$/'],
             // A LinkedIn page link (company or person); https:// may be left off.
-            'linkedinUrl' => ['nullable', 'string', 'max:255', 'regex:/^(https?:\/\/)?([a-z]{2,3}\.)?linkedin\.com\/[^\s]+$/i'],
+            'linkedinUrl' => ['nullable', 'string', 'max:240', 'regex:/^(https?:\/\/)?([a-z]{2,3}\.)?linkedin\.com\/[^\s]+$/i'],
         ];
     }
 
